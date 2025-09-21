@@ -5,18 +5,21 @@ import fs from 'fs';
 import QRCode from 'qrcode';
 import sharp from 'sharp';
 import { exec } from 'child_process';
+import ffmpeg from 'fluent-ffmpeg';
+import ffmpegPath from 'ffmpeg-static';
+
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Папка public для отдачи файлов
+// Папка public доступна
 app.use(express.static(path.join(process.cwd(), 'public')));
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(process.cwd(), 'form.html'));
 });
 
-// Настройка multer для загрузки файлов
 const upload = multer({ dest: 'uploads/' });
 
 app.post('/upload', upload.fields([{ name: 'photo' }, { name: 'video' }]), async (req, res) => {
@@ -35,11 +38,22 @@ app.post('/upload', upload.fields([{ name: 'photo' }, { name: 'video' }]), async
     const mindFile = path.join(folder, 'target.mind');
     const htmlFile = path.join(folder, 'index.html');
 
-    // Перемещаем загруженные файлы
+    // Перемещаем файлы
     fs.renameSync(uploadedPhoto.path, photoFile);
-    fs.renameSync(uploadedVideo.path, videoFile);
 
-    // Генерация .mind из оригинального фото
+    // Сжимаем видео до 25 МБ, если нужно
+    await new Promise((resolve, reject) => {
+      ffmpeg(videoFile)
+        .outputOptions('-fs', '25M') // ограничение размера файла
+        .save(`${folder}/video_compressed${path.extname(uploadedVideo.originalname)}`)
+        .on('end', () => {
+          fs.renameSync(`${folder}/video_compressed${path.extname(uploadedVideo.originalname)}`, videoFile);
+          resolve();
+        })
+        .on('error', reject);
+    });
+
+    // Генерация .mind из фото
     await new Promise((resolve, reject) => {
       const mindarPath = path.join(process.cwd(), 'node_modules', '.bin', 'mindar');
       exec(`${mindarPath} build "${photoFile}" -o "${mindFile}"`, (error, stdout, stderr) => {
@@ -50,23 +64,39 @@ app.post('/upload', upload.fields([{ name: 'photo' }, { name: 'video' }]), async
       });
     });
 
-    // Генерация QR-кода для AR-сайта
-    const baseURL = process.env.BASE_URL || `https://four-5cvw.onrender.com`;
+    // Генерация QR-кода
+    const baseURL = process.env.BASE_URL || 'https://your-render-domain.onrender.com';
     const qrURL = `${baseURL}/${clientId}/index.html`;
     await QRCode.toFile(qrFile, qrURL, { width: 200 });
 
-    // Наложение QR на фото для пользователя
+    // Наложение QR на фото
     const photoSharp = sharp(photoFile);
     const qrBuffer = await sharp(qrFile).resize(200).toBuffer();
     const { height } = await photoSharp.metadata();
-    await photoSharp.composite([{ input: qrBuffer, top: height - 220, left: 20 }])
-      .toFile(photoWithQR);
+    await photoSharp.composite([{ input: qrBuffer, top: height - 220, left: 20 }]).toFile(photoWithQR);
 
-    // Генерация HTML с MindAR
-    const htmlTemplate = fs.readFileSync('template/index.html', 'utf-8')
-      .replace(/{{VIDEO}}/g, path.basename(videoFile))
-      .replace(/{{PHOTO}}/g, path.basename(photoFile))
-      .replace(/{{MIND}}/g, path.basename(mindFile));
+    // Генерация HTML
+    const htmlTemplate = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AR Client</title>
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-aframe.prod.js"></script>
+</head>
+<body>
+<a-scene mindar-image="imageTargetSrc: ./${path.basename(mindFile)};" embedded color-space="sRGB" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: true">
+  <a-assets>
+    <video id="video1" src="./${path.basename(videoFile)}" preload="auto" crossorigin="anonymous"></video>
+  </a-assets>
+  <a-image mindar-image-target="targetIndex: 0" src="./${path.basename(photoFile)}"></a-image>
+  <a-video src="#video1" width="1.2" height="0.8" position="0 0.4 0" rotation="-90 0 0" mindar-image-target="targetIndex: 0" autoplay="true" loop="true"></a-video>
+  <a-camera position="0 0 0"></a-camera>
+</a-scene>
+</body>
+</html>
+    `;
     fs.writeFileSync(htmlFile, htmlTemplate);
 
     res.send(`
