@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>AR Фото-видео</title>
+  <title>TamerlanMotion AR</title>
 
   <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
@@ -16,7 +16,9 @@
       height: 100vh;
       width: 100vw;
       overflow: hidden;
+      font-family: sans-serif;
     }
+
     #container {
       position: fixed;
       top: 0;
@@ -27,20 +29,31 @@
       justify-content: center;
       align-items: center;
       overflow: hidden;
+      background: radial-gradient(circle at center, #000000 0%, #111 100%);
     }
+
     #startButton {
       position: absolute;
       top: 50%; left: 50%;
       transform: translate(-50%, -50%);
       padding: 20px 40px;
       font-size: 18px;
-      background: #1e90ff;
+      background: #ff4500;
       color: white;
       border: none;
-      border-radius: 8px;
+      border-radius: 10px;
       z-index: 10;
       cursor: pointer;
+      box-shadow: 0 0 20px rgba(255, 69, 0, 0.7);
+      animation: pulse 1.5s infinite;
     }
+
+    @keyframes pulse {
+      0% { transform: translate(-50%, -50%) scale(1); }
+      50% { transform: translate(-50%, -50%) scale(1.1); }
+      100% { transform: translate(-50%, -50%) scale(1); }
+    }
+
     a-scene {
       width: 100%;
       height: 100%;
@@ -51,7 +64,7 @@
 <body>
 
 <div id="container">
-  <button id="startButton">Нажмите, чтобы включить камеру</button>
+  <button id="startButton">Нажмите, чтобы начать AR</button>
 
   <a-scene
     mindar-image="imageTargetSrc: ./{{PHOTO}}.mind;"
@@ -67,8 +80,10 @@
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-    <a-entity mindar-image-target="targetIndex: 0">
-      <a-video id="videoPlane" src="#video1"></a-video>
+    <a-entity mindar-image-target="targetIndex: 0" visible="false">
+      <a-video id="videoPlane" src="#video1" width="1" height="0.5625" rotation="0 0 0" position="0 0 0"
+               animation__fade="property: material.opacity; from: 0; to: 1; dur: 1000; startEvents: showVideo">
+      </a-video>
     </a-entity>
   </a-scene>
 </div>
@@ -80,7 +95,7 @@
   const targetEntity = document.querySelector('[mindar-image-target]');
   let isPlaying = false;
 
-  // Кнопка нужна только для разблокировки видео на iOS
+  // Разблокировка видео на iOS
   button.addEventListener('click', async () => {
     try {
       videoEl.muted = true;
@@ -94,7 +109,7 @@
     }
   });
 
-  // Подгоняем пропорции под видео
+  // Автоматическая подгонка пропорций под видео
   videoEl.addEventListener('loadedmetadata', () => {
     const aspect = videoEl.videoWidth / videoEl.videoHeight;
     const baseWidth = 1;
@@ -103,9 +118,11 @@
     videoPlane.setAttribute('height', baseHeight);
   });
 
-  // Воспроизведение видео при нахождении маркера
+  // Воспроизведение видео с эффектом появления
   targetEntity.addEventListener('targetFound', () => {
     if (!isPlaying) {
+      targetEntity.setAttribute('visible', 'true');
+      videoPlane.emit('showVideo'); // Анимация fade-in
       videoEl.muted = false;
       videoEl.currentTime = 0;
       videoEl.play();
@@ -113,10 +130,11 @@
     }
   });
 
-  // Остановка видео при потере маркера
+  // Остановка видео с эффектом исчезновения
   targetEntity.addEventListener('targetLost', () => {
     videoEl.pause();
     videoEl.currentTime = 0;
+    targetEntity.setAttribute('visible', 'false');
     isPlaying = false;
   });
 </script>
