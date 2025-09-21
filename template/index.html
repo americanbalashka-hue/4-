@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>TamerlanMotion AR</title>
+  <title>AR Фото-видео Client1</title>
 
   <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
@@ -10,31 +10,28 @@
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.4/dist/mindar-image-aframe.prod.js"></script>
 
   <style>
-    body, html {
+    body {
       margin: 0;
-      padding: 0;
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
       background: black;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
     }
-
     #container {
       position: fixed;
       top: 0;
       left: 0;
       width: 100vw;
       height: 100vh;
+      background: black;
       display: flex;
       justify-content: center;
       align-items: center;
-      background: black;
+      overflow: hidden;
     }
-
     #startButton {
       position: absolute;
-      top: 50%;
-      left: 50%;
+      top: 50%; left: 50%;
       transform: translate(-50%, -50%);
       padding: 20px 40px;
       font-size: 18px;
@@ -45,10 +42,10 @@
       z-index: 10;
       cursor: pointer;
     }
-
     a-scene {
       width: 100%;
       height: 100%;
+      object-fit: cover;
     }
   </style>
 </head>
@@ -58,7 +55,7 @@
   <button id="startButton">Нажмите, чтобы включить камеру</button>
 
   <a-scene
-    mindar-image="imageTargetSrc: ./{{PHOTO}}.mind;"
+    mindar-image="imageTargetSrc: ./client1.mind;"
     embedded
     color-space="sRGB"
     renderer="colorManagement: true, physicallyCorrectLights"
@@ -66,20 +63,14 @@
     device-orientation-permission-ui="enabled: false">
 
     <a-assets>
-      <video id="video1" src="./{{VIDEO}}" preload="auto" playsinline webkit-playsinline></video>
+      <video id="video1" src="./client1.mp4" preload="auto" playsinline webkit-playsinline></video>
     </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-    <!-- Видео проекция на плоскости 16:9 -->
-    <a-entity mindar-image-target="targetIndex: 0" visible="false">
-      <a-plane id="videoPlane" 
-               material="shader: flat; src: #video1" 
-               position="0 0 0" 
-               width="2" 
-               height="1.125"  <!-- 16:9 -->
-               animation__fade="property: material.opacity; from: 0; to: 1; dur: 1000; startEvents: showVideo">
-      </a-plane>
+    <a-entity mindar-image-target="targetIndex: 0">
+      <!-- убрали фиксированные width/height -->
+      <a-video id="videoPlane" src="#video1"></a-video>
     </a-entity>
   </a-scene>
 </div>
@@ -91,37 +82,45 @@
   const targetEntity = document.querySelector('[mindar-image-target]');
   let isPlaying = false;
 
-  // Разблокировка видео на iOS
+  // Кнопка нужна только для разблокировки видео
   button.addEventListener('click', async () => {
     try {
+      // "Тихий" запуск для iOS
       videoEl.muted = true;
       await videoEl.play();
       videoEl.pause();
       videoEl.currentTime = 0;
+
       button.style.display = 'none';
     } catch (err) {
-      alert('Не удалось включить камеру. Проверьте разрешения.');
+      alert('Не удалось включить камеру. Проверь разрешения.');
       console.error(err);
     }
   });
 
-  // Воспроизведение видео при нахождении маркера
+  // Подгоняем пропорции под видео
+  videoEl.addEventListener('loadedmetadata', () => {
+    const aspect = videoEl.videoWidth / videoEl.videoHeight;
+    const baseWidth = 1; // ширина проекции (можно увеличить)
+    const baseHeight = baseWidth / aspect;
+    videoPlane.setAttribute('width', baseWidth);
+    videoPlane.setAttribute('height', baseHeight);
+  });
+
+  // Когда фото найдено → запускаем видео со звуком
   targetEntity.addEventListener('targetFound', () => {
     if (!isPlaying) {
-      targetEntity.setAttribute('visible', 'true');
-      videoPlane.emit('showVideo'); 
-      videoEl.muted = false;
+      videoEl.muted = false;  
       videoEl.currentTime = 0;
       videoEl.play();
       isPlaying = true;
     }
   });
 
-  // Остановка видео при потере маркера
+  // Когда фото потеряно → останавливаем
   targetEntity.addEventListener('targetLost', () => {
     videoEl.pause();
     videoEl.currentTime = 0;
-    targetEntity.setAttribute('visible', 'false');
     isPlaying = false;
   });
 </script>
