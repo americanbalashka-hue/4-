@@ -1,144 +1,99 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <title>AR Фото-видео</title>
+<meta charset="UTF-8">
+<title>AR Фото-видео с сканером</title>
 
-  <!-- A-Frame -->
-  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-  <!-- MindAR.js -->
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.4/dist/mindar-image-aframe.prod.js"></script>
+<!-- A-Frame -->
+<script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+<!-- MindAR.js (браузерная версия) -->
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.4/dist/mindar-image-aframe.prod.js"></script>
 
-  <style> 
-    body {
-      margin: 0;
-      background: black;
-      height: 100vh;
-      width: 100vw;
-      overflow: hidden;
-    }
-    #container {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      overflow: hidden;
-    }
-    #startButton {
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      padding: 20px 40px;
-      font-size: 18px;
-      background: #1e90ff;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      z-index: 10;
-      cursor: pointer;
-    }
-    a-scene {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    /* Сканер: рамка + анимация */
-    #scanner {
-      position: absolute;
-      top: 50%; left: 50%;
-      width: 200px; height: 200px;
-      transform: translate(-50%, -50%);
-      border: 3px solid #1e90ff;
-      border-radius: 8px;
-      animation: pulse 1.5s infinite;
-      z-index: 9;
-    }
-    @keyframes pulse {
-      0% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
-      50% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.4; }
-      100% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
-    }
-  </style>
+<style>
+body { margin:0; background:black; height:100vh; width:100vw; overflow:hidden; }
+#container { position:fixed; top:0; left:0; width:100vw; height:100vh; display:flex; justify-content:center; align-items:center; flex-direction:column; }
+#inputs { display:flex; gap:10px; margin-bottom:20px; }
+#startButton { padding:15px 30px; font-size:16px; background:#1e90ff; color:white; border:none; border-radius:8px; cursor:pointer; }
+#loader { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); display:none; color:white; font-size:18px; }
+#scanner { position:absolute; top:50%; left:50%; width:200px; height:200px; margin:-100px 0 0 -100px; border:3px solid #1e90ff; border-radius:8px; box-sizing:border-box; animation:scan 2s linear infinite; pointer-events:none; display:none; }
+@keyframes scan { 0% { transform:translate(-50%,-50%) rotate(0deg); } 100% { transform:translate(-50%,-50%) rotate(360deg); } }
+a-scene { width:100%; height:100%; object-fit:cover; }
+</style>
 </head>
 <body>
 
 <div id="container">
-  <button id="startButton">Нажмите, чтобы включить камеру</button>
+  <div id="inputs">
+    <input type="file" id="photoInput" accept="image/*">
+    <input type="file" id="videoInput" accept="video/*">
+  </div>
+  <button id="startButton">Генерировать AR</button>
+  <div id="loader">Генерация AR…</div>
   <div id="scanner"></div>
-
-  <a-scene
-    mindar-image="imageTargetSrc: ./{{PHOTO}}; generateFromImage: true;"
-    embedded
-    color-space="sRGB"
-    renderer="colorManagement: true, physicallyCorrectLights"
-    vr-mode-ui="enabled: false"
-    device-orientation-permission-ui="enabled: false">
-
-    <a-assets>
-      <video id="video1" src="./{{VIDEO}}" preload="auto" playsinline webkit-playsinline></video>
-    </a-assets>
-
-    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-
-    <a-entity mindar-image-target="targetIndex: 0">
-      <a-video id="videoPlane" src="#video1"></a-video>
-    </a-entity>
-  </a-scene>
 </div>
 
 <script>
-  const button = document.getElementById('startButton');
+const startButton = document.getElementById('startButton');
+const photoInput = document.getElementById('photoInput');
+const videoInput = document.getElementById('videoInput');
+const loader = document.getElementById('loader');
+const scanner = document.getElementById('scanner');
+
+startButton.addEventListener('click', async () => {
+  if (!photoInput.files[0] || !videoInput.files[0]) {
+    alert('Выберите фото и видео!');
+    return;
+  }
+
+  loader.style.display = 'block';
+  startButton.disabled = true;
+
+  const photoFile = photoInput.files[0];
+  const videoFile = videoInput.files[0];
+
+  // Создаём MindAR target прямо в браузере
+  const mindar = new window.MINDAR.ImageTarget();
+  await mindar.addImageFile(photoFile); // создаёт .mind автоматически
+
+  const videoURL = URL.createObjectURL(videoFile);
+
+  // Показываем сканер
+  loader.style.display = 'none';
+  scanner.style.display = 'block';
+  document.getElementById('container').innerHTML = `
+    <a-scene mindar-image="imageTargetSrc: ${mindar.targetSrc}; embedded" 
+             color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights"
+             vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+      <a-assets>
+        <video id="video1" src="${videoURL}" preload="auto" playsinline webkit-playsinline></video>
+      </a-assets>
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+      <a-entity mindar-image-target="targetIndex: 0">
+        <a-video id="videoPlane" src="#video1"></a-video>
+      </a-entity>
+    </a-scene>
+  `;
+
   const videoEl = document.getElementById('video1');
-  const videoPlane = document.getElementById('videoPlane');
   const targetEntity = document.querySelector('[mindar-image-target]');
-  const scanner = document.getElementById('scanner');
   let isPlaying = false;
 
-  // Разблокировка видео на iOS
-  button.addEventListener('click', async () => {
-    try {
-      videoEl.muted = true;
-      await videoEl.play();
-      videoEl.pause();
-      videoEl.currentTime = 0;
-      button.style.display = 'none';
-    } catch (err) {
-      alert('Не удалось включить камеру. Проверь разрешения.');
-      console.error(err);
-    }
-  });
-
-  // Подгоняем видео под маркер
-  videoEl.addEventListener('loadedmetadata', () => {
-    const aspect = videoEl.videoWidth / videoEl.videoHeight;
-    const baseWidth = 1;
-    const baseHeight = baseWidth / aspect;
-    videoPlane.setAttribute('width', baseWidth);
-    videoPlane.setAttribute('height', baseHeight);
-  });
-
-  // Воспроизведение видео при нахождении маркера
   targetEntity.addEventListener('targetFound', () => {
-    scanner.style.display = 'none'; // прячем сканер
     if (!isPlaying) {
-      videoEl.muted = false;
       videoEl.currentTime = 0;
       videoEl.play();
       isPlaying = true;
+      scanner.style.display = 'none'; // убираем сканер
     }
   });
 
-  // Остановка видео при потере маркера
   targetEntity.addEventListener('targetLost', () => {
-    scanner.style.display = 'block'; // показываем сканер снова
     videoEl.pause();
     videoEl.currentTime = 0;
     isPlaying = false;
+    scanner.style.display = 'block'; // показываем сканер снова
   });
+});
 </script>
 
 </body>
