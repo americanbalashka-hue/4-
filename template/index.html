@@ -17,20 +17,17 @@
       width: 100vw;
       overflow: hidden;
     }
-
     #container {
       position: fixed;
       top: 0;
       left: 0;
       width: 100vw;
       height: 100vh;
-      background: black;
       display: flex;
       justify-content: center;
       align-items: center;
       overflow: hidden;
     }
-
     #startButton {
       position: absolute;
       top: 50%; left: 50%;
@@ -44,38 +41,26 @@
       z-index: 10;
       cursor: pointer;
     }
-
     a-scene {
       width: 100%;
       height: 100%;
       object-fit: cover;
     }
-
-    /* Сканер */
+    /* Сканер: рамка + анимация */
     #scanner {
       position: absolute;
       top: 50%; left: 50%;
       width: 200px; height: 200px;
       transform: translate(-50%, -50%);
       border: 3px solid #1e90ff;
-      border-radius: 12px;
-      pointer-events: none;
-      z-index: 5;
-      box-shadow: 0 0 10px #1e90ff;
+      border-radius: 8px;
+      animation: pulse 1.5s infinite;
+      z-index: 9;
     }
-
-    .scan-line {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 3px;
-      background: #1e90ff;
-      animation: scan 2s linear infinite;
-    }
-
-    @keyframes scan {
-      0% { top: 0; }
-      50% { top: calc(100% - 3px); }
-      100% { top: 0; }
+    @keyframes pulse {
+      0% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+      50% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.4; }
+      100% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
     }
   </style>
 </head>
@@ -83,14 +68,10 @@
 
 <div id="container">
   <button id="startButton">Нажмите, чтобы включить камеру</button>
-
-  <!-- Сканер -->
-  <div id="scanner">
-    <div class="scan-line"></div>
-  </div>
+  <div id="scanner"></div>
 
   <a-scene
-    mindar-image="imageTargetSrc: ./{{MIND}};"
+    mindar-image="imageTargetSrc: ./{{PHOTO}}; generateFromImage: true;"
     embedded
     color-space="sRGB"
     renderer="colorManagement: true, physicallyCorrectLights"
@@ -117,7 +98,7 @@
   const scanner = document.getElementById('scanner');
   let isPlaying = false;
 
-  // Кнопка нужна для разблокировки камеры и видео
+  // Разблокировка видео на iOS
   button.addEventListener('click', async () => {
     try {
       videoEl.muted = true;
@@ -131,7 +112,7 @@
     }
   });
 
-  // Подгоняем пропорции под видео
+  // Подгоняем видео под маркер
   videoEl.addEventListener('loadedmetadata', () => {
     const aspect = videoEl.videoWidth / videoEl.videoHeight;
     const baseWidth = 1;
@@ -140,9 +121,9 @@
     videoPlane.setAttribute('height', baseHeight);
   });
 
-  // Маркер найден
+  // Воспроизведение видео при нахождении маркера
   targetEntity.addEventListener('targetFound', () => {
-    scanner.style.display = 'none'; // скрываем сканер
+    scanner.style.display = 'none'; // прячем сканер
     if (!isPlaying) {
       videoEl.muted = false;
       videoEl.currentTime = 0;
@@ -151,9 +132,9 @@
     }
   });
 
-  // Маркер потерян
+  // Остановка видео при потере маркера
   targetEntity.addEventListener('targetLost', () => {
-    scanner.style.display = 'block'; // показываем сканер
+    scanner.style.display = 'block'; // показываем сканер снова
     videoEl.pause();
     videoEl.currentTime = 0;
     isPlaying = false;
