@@ -2,53 +2,66 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import QRCode from 'qrcode';
+import sharp from 'sharp';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const upload = multer({ dest: 'uploads/' });
 
-// Папка для статических файлов
-app.use('/public', express.static(path.join(process.cwd(), 'public')));
+app.use(express.static('public'));
 
-// Настройка multer для загрузки
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const clientDir = path.join(__dirname, 'public', Date.now().toString());
-    fs.mkdirSync(clientDir, { recursive: true });
-    cb(null, clientDir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (file.fieldname === 'photo') cb(null, `photo${ext}`);
-    if (file.fieldname === 'video') cb(null, `video${ext}`);
+// Базовый URL сервера (Environment Variable на Render)
+const baseURL = process.env.BASE_URL || 'https://four-5cvw.onrender.com';
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(process.cwd(), 'form.html'));
+});
+
+app.post('/upload', upload.fields([{ name: 'photo' }, { name: 'video' }]), async (req, res) => {
+  try {
+    const clientId = Date.now().toString();
+    const folder = `public/${clientId}`;
+    fs.mkdirSync(folder, { recursive: true });
+
+    const photoExt = path.extname(req.files['photo'][0].originalname);
+    const videoExt = path.extname(req.files['video'][0].originalname);
+
+    const photoFile = `${folder}/photo${photoExt}`;
+    const videoFile = `${folder}/video${videoExt}`;
+    const qrFile = `${folder}/qrcode.png`;
+    const photoWithQR = `${folder}/photo_with_qr${photoExt}`;
+    const htmlFile = `${folder}/index.html`;
+
+    // Перемещаем файлы
+    fs.renameSync(req.files['photo'][0].path, photoFile);
+    fs.renameSync(req.files['video'][0].path, videoFile);
+
+    // Генерируем QR
+    const qrURL = `${baseURL}/${clientId}/index.html`;
+    await QRCode.toFile(qrFile, qrURL, { width: 200 });
+
+    // Накладываем QR на фото
+    const photoSharp = sharp(photoFile);
+    const qrBuffer = await sharp(qrFile).resize(200).toBuffer();
+    const { height } = await photoSharp.metadata();
+    await photoSharp.composite([{ input: qrBuffer, top: height - 220, left: 20 }]).toFile(photoWithQR);
+
+    // Генерируем HTML с клиентской генерацией MindAR
+    const htmlTemplate = fs.readFileSync('template/index.html', 'utf-8')
+      .replace(/{{VIDEO}}/g, path.basename(videoFile))
+      .replace(/{{PHOTO}}/g, path.basename(photoFile));
+    fs.writeFileSync(htmlFile, htmlTemplate);
+
+    res.send(`
+      Готово! <br>
+      AR-сайт: <a href="${clientId}/index.html">${clientId}/index.html</a> <br>
+      Фото с QR: <a href="${clientId}/${path.basename(photoWithQR)}">Скачать</a>
+    `);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Ошибка сервера');
   }
 });
-const upload = multer({ storage });
 
-// Загрузка фото и видео
-app.post('/upload', upload.fields([{ name: 'photo' }, { name: 'video' }]), (req, res) => {
-  const clientDir = path.dirname(req.files['photo'][0].path);
-  res.send(`
-    AR-сайт готов! <br>
-    <a href="/client/${path.basename(clientDir)}">Открыть AR</a>
-  `);
-});
-
-// Создаём страницу для клиента, подставляя фото и видео
-app.get('/client/:id', (req, res) => {
-  const clientId = req.params.id;
-  const folder = path.join(__dirname, 'public', clientId);
-  const files = fs.readdirSync(folder);
-  const photoFile = files.find(f => f.endsWith('.jpg') || f.endsWith('.jpeg') || f.endsWith('.png'));
-  const videoFile = files.find(f => f.endsWith('.mp4') || f.endsWith('.mov') || f.endsWith('.m4v'));
-
-  if (!photoFile || !videoFile) return res.send('Файлы не найдены');
-
-  // Читаем шаблон
-  let template = fs.readFileSync(path.join(__dirname, 'template', 'index.html'), 'utf-8');
-  template = template.replace('{{PHOTO}}', `/public/${clientId}/${photoFile}`);
-  template = template.replace('{{VIDEO}}', `/public/${clientId}/${videoFile}`);
-
-  res.send(template);
-});
-
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(process.env.PORT || 3000, () => console.log('Server started'));
