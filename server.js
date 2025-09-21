@@ -5,52 +5,58 @@ import fs from 'fs';
 import { exec } from 'child_process';
 import QRCode from 'qrcode';
 import sharp from 'sharp';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({ dest: path.join(__dirname, 'uploads') });
 
-app.use(express.static('public'));
+// Статика
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Базовый URL сервера (можно задать через Environment Variable на Render)
+// Базовый URL сервера (через Environment Variable Render)
 const baseURL = process.env.BASE_URL || 'https://my-render-app.onrender.com';
 
-app.get('/', (req, res) => res.sendFile(path.join('form.html')));
+// Главная страница — форма загрузки
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'form.html'));
+});
 
+// Обработка загрузки
 app.post('/upload', upload.fields([{ name: 'photo' }, { name: 'video' }]), async (req, res) => {
   try {
-    // Уникальный ID клиента
     const clientId = Date.now().toString();
-    const folder = `public/${clientId}`;
+    const folder = path.join(__dirname, 'public', clientId);
     fs.mkdirSync(folder, { recursive: true });
 
-    // Определяем расширения исходных файлов
     const photoExt = path.extname(req.files['photo'][0].originalname);
     const videoExt = path.extname(req.files['video'][0].originalname);
 
-    // Новые имена файлов по базе
-    const photoFile = `${folder}/photo${photoExt}`;
-    const videoFile = `${folder}/video${videoExt}`;
-    const compressedVideo = `${folder}/video_compressed${videoExt}`;
-    const mindFile = `${folder}/photo.mind`;
-    const qrFile = `${folder}/qrcode.png`;
-    const photoWithQR = `${folder}/photo_with_qr${photoExt}`;
-    const htmlFile = `${folder}/index.html`;
+    const photoFile = path.join(folder, `photo${photoExt}`);
+    const videoFile = path.join(folder, `video${videoExt}`);
+    const compressedVideo = path.join(folder, `video_compressed${videoExt}`);
+    const mindFile = path.join(folder, 'photo.mind');
+    const qrFile = path.join(folder, 'qrcode.png');
+    const photoWithQR = path.join(folder, `photo_with_qr${photoExt}`);
+    const htmlFile = path.join(folder, 'index.html');
 
-    // Перемещаем файлы в папку клиента
+    // Перемещаем файлы
     fs.renameSync(req.files['photo'][0].path, photoFile);
     fs.renameSync(req.files['video'][0].path, videoFile);
 
-    // 1. Сжимаем видео до <25MB
-    await new Promise((resolve) => {
+    // Сжимаем видео
+    await new Promise(resolve => {
       exec(`ffmpeg -i "${videoFile}" -vf "scale=640:-2" -b:v 2M -maxrate 2M -bufsize 2M "${compressedVideo}"`, resolve);
     });
 
-    // 2. Генерируем .mind
-    await new Promise((resolve) => {
-      exec(`mindar-image-compiler -i "${photoFile}" -o "${mindFile}"`, resolve);
+    // Генерация .mind
+    await new Promise(resolve => {
+      exec(`npx @zappar/mindar-image-compiler -i "${photoFile}" -o "${mindFile}"`, resolve);
     });
 
-    // 3. Генерируем QR и накладываем на фото
+    // Генерация QR и наложение на фото
     const qrURL = `${baseURL}/${clientId}/index.html`;
     await QRCode.toFile(qrFile, qrURL, { width: 200 });
 
@@ -59,13 +65,13 @@ app.post('/upload', upload.fields([{ name: 'photo' }, { name: 'video' }]), async
     const { height } = await photoSharp.metadata();
     await photoSharp.composite([{ input: qrBuffer, top: height - 220, left: 20 }]).toFile(photoWithQR);
 
-    // 4. Создаём index.html
-    const htmlTemplate = fs.readFileSync('template/index.html', 'utf-8')
+    // Создаём index.html
+    const htmlTemplate = fs.readFileSync(path.join(__dirname, 'template', 'index.html'), 'utf-8')
       .replace(/{{VIDEO}}/g, path.basename(compressedVideo))
       .replace(/{{MIND}}/g, path.basename(mindFile));
     fs.writeFileSync(htmlFile, htmlTemplate);
 
-    // 5. Возвращаем ссылки фотографу
+    // Возвращаем ссылки
     res.send(`
       Готово! <br>
       Ссылка на AR-сайт: <a href="${clientId}/index.html">${clientId}/index.html</a> <br>
@@ -78,4 +84,5 @@ app.post('/upload', upload.fields([{ name: 'photo' }, { name: 'video' }]), async
   }
 });
 
+// Запуск сервера
 app.listen(process.env.PORT || 3000, () => console.log('Server started'));
