@@ -9,7 +9,7 @@ import { exec } from 'child_process';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Делаем public полностью доступным
+// Папка public для отдачи файлов
 app.use(express.static(path.join(process.cwd(), 'public')));
 
 app.get('/', (req, res) => {
@@ -25,42 +25,44 @@ app.post('/upload', upload.fields([{ name: 'photo' }, { name: 'video' }]), async
     const folder = path.join('public', clientId);
     fs.mkdirSync(folder, { recursive: true });
 
-    const photoFile = path.join(folder, `photo${path.extname(req.files['photo'][0].originalname)}`);
-    const videoFile = path.join(folder, `video${path.extname(req.files['video'][0].originalname)}`);
+    const uploadedPhoto = req.files['photo'][0];
+    const uploadedVideo = req.files['video'][0];
+
+    const photoFile = path.join(folder, `photo${path.extname(uploadedPhoto.originalname)}`);
+    const videoFile = path.join(folder, `video${path.extname(uploadedVideo.originalname)}`);
     const qrFile = path.join(folder, 'qrcode.png');
-    const photoWithQR = path.join(folder, `photo_with_qr${path.extname(req.files['photo'][0].originalname)}`);
+    const photoWithQR = path.join(folder, `photo_with_qr${path.extname(uploadedPhoto.originalname)}`);
     const mindFile = path.join(folder, 'target.mind');
     const htmlFile = path.join(folder, 'index.html');
 
-    // Перемещаем файлы
-    fs.renameSync(req.files['photo'][0].path, photoFile);
-    fs.renameSync(req.files['video'][0].path, videoFile);
+    // Перемещаем загруженные файлы
+    fs.renameSync(uploadedPhoto.path, photoFile);
+    fs.renameSync(uploadedVideo.path, videoFile);
 
-    // Генерация .mind файла из оригинального фото
+    // Генерация .mind из оригинального фото
     await new Promise((resolve, reject) => {
-      exec(
-        `./node_modules/.bin/mindar-cli build "${photoFile}" -o "${mindFile}"`,
-        (error, stdout, stderr) => {
-          if (error) return reject(error);
-          if (stderr) console.error(stderr);
-          console.log(stdout);
-          resolve();
-        }
-      );
+      const mindarPath = path.join(process.cwd(), 'node_modules', '.bin', 'mindar');
+      exec(`${mindarPath} build "${photoFile}" -o "${mindFile}"`, (error, stdout, stderr) => {
+        if (error) return reject(error);
+        if (stderr) console.error(stderr);
+        console.log(stdout);
+        resolve();
+      });
     });
 
-    // Генерация QR кода на страницу
+    // Генерация QR-кода для AR-сайта
     const baseURL = process.env.BASE_URL || `https://four-5cvw.onrender.com`;
     const qrURL = `${baseURL}/${clientId}/index.html`;
     await QRCode.toFile(qrFile, qrURL, { width: 200 });
 
-    // Накладываем QR на фото
+    // Наложение QR на фото для пользователя
     const photoSharp = sharp(photoFile);
     const qrBuffer = await sharp(qrFile).resize(200).toBuffer();
     const { height } = await photoSharp.metadata();
-    await photoSharp.composite([{ input: qrBuffer, top: height - 220, left: 20 }]).toFile(photoWithQR);
+    await photoSharp.composite([{ input: qrBuffer, top: height - 220, left: 20 }])
+      .toFile(photoWithQR);
 
-    // Генерация HTML из шаблона
+    // Генерация HTML с MindAR
     const htmlTemplate = fs.readFileSync('template/index.html', 'utf-8')
       .replace(/{{VIDEO}}/g, path.basename(videoFile))
       .replace(/{{PHOTO}}/g, path.basename(photoFile))
@@ -68,9 +70,9 @@ app.post('/upload', upload.fields([{ name: 'photo' }, { name: 'video' }]), async
     fs.writeFileSync(htmlFile, htmlTemplate);
 
     res.send(`
-      ✅ Готово! <br>
-      📌 AR-сайт: <a href="/${clientId}/index.html">${clientId}/index.html</a> <br>
-      🖼 Фото с QR: <a href="/${clientId}/${path.basename(photoWithQR)}">Скачать</a>
+      <h2>Готово!</h2>
+      <p>AR-сайт: <a href="/${clientId}/index.html">${clientId}/index.html</a></p>
+      <p>Фото с QR: <a href="/${clientId}/${path.basename(photoWithQR)}">Скачать</a></p>
     `);
 
   } catch (err) {
@@ -79,4 +81,4 @@ app.post('/upload', upload.fields([{ name: 'photo' }, { name: 'video' }]), async
   }
 });
 
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
