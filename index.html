@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>AR Фото-видео</title>
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.4/dist/mindar-image-aframe.prod.js"></script>
+  <style>
+    body { margin:0; background:black; }
+    #startButton {
+      position: absolute; top:50%; left:50%;
+      transform: translate(-50%, -50%);
+      padding: 20px 40px;
+      background:#1e90ff; color:white;
+      border:none; border-radius:8px;
+      cursor:pointer;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <button id="startButton">▶ Включить камеру</button>
+  <a-scene mindar-image="imageTargetSrc: ./{{MIND}};" embedded vr-mode-ui="enabled: false">
+    <a-assets>
+      <video id="video1" src="./{{VIDEO}}" preload="auto" playsinline webkit-playsinline></video>
+    </a-assets>
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+    <a-entity mindar-image-target="targetIndex: 0">
+      <a-video id="videoPlane" src="#video1"></a-video>
+    </a-entity>
+  </a-scene>
+  <script>
+    const btn = document.getElementById('startButton');
+    const vid = document.getElementById('video1');
+    const plane = document.getElementById('videoPlane');
+    btn.addEventListener('click', async () => {
+      vid.muted = true;
+      await vid.play();
+      vid.pause(); vid.currentTime = 0;
+      btn.style.display = 'none';
+    });
+    vid.addEventListener('loadedmetadata', () => {
+      const aspect = vid.videoWidth / vid.videoHeight;
+      plane.setAttribute('width', 1);
+      plane.setAttribute('height', 1 / aspect);
+    });
+    document.querySelector('[mindar-image-target]')
+      .addEventListener('targetFound', () => { vid.muted = false; vid.play(); });
+    document.querySelector('[mindar-image-target]')
+      .addEventListener('targetLost', () => { vid.pause(); vid.currentTime = 0; });
+  </script>
+</body>
+</html>
