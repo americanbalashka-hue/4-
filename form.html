@@ -2,148 +2,68 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>TamerlanMotion</title>
+  <title>TamerlanMotion — Загрузка AR</title>
   <style>
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, #f0f4ff, #d9e4ff);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      margin: 0;
-      transition: background 0.5s;
-    }
-
-    .container {
-      background: #fff;
-      padding: 30px 40px;
-      border-radius: 16px;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-      width: 100%;
-      max-width: 480px;
-      transition: transform 0.3s, box-shadow 0.3s;
-    }
-
-    .container:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 12px 30px rgba(0,0,0,0.2);
-    }
-
-    h2 {
+      font-family: 'Arial', sans-serif;
+      background: linear-gradient(135deg,#6e8efb,#a777e3);
+      color: #fff;
       text-align: center;
-      color: #333;
-      margin-bottom: 25px;
-      letter-spacing: 0.5px;
-      animation: fadeIn 1s ease forwards;
-      opacity: 0;
+      padding: 50px;
+      animation: gradient 5s ease infinite;
     }
-
+    @keyframes gradient {
+      0%{background-position:0% 50%}
+      50%{background-position:100% 50%}
+      100%{background-position:0% 50%}
+    }
+    h2 {
+      font-size: 2em;
+      margin-bottom: 30px;
+      text-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+    }
+    form {
+      background: rgba(0,0,0,0.3);
+      padding: 30px;
+      border-radius: 15px;
+      display: inline-block;
+      box-shadow: 0 0 20px rgba(0,0,0,0.2);
+    }
+    input {
+      margin: 15px 0;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+    }
+    button {
+      padding: 12px 30px;
+      border: none;
+      border-radius: 8px;
+      background: #ffb347;
+      background: linear-gradient(to right, #ffcc33, #ff6600);
+      color: #fff;
+      font-size: 1em;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
     label {
       display: block;
-      margin-bottom: 15px;
-      color: #555;
-      font-weight: 500;
-    }
-
-    input[type="file"] {
-      display: block;
-      margin-top: 5px;
-      cursor: pointer;
-    }
-
-    button {
-      width: 100%;
-      padding: 14px;
-      background: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 10px;
-      font-size: 16px;
+      margin-top: 10px;
       font-weight: bold;
-      cursor: pointer;
-      transition: background 0.3s, transform 0.2s, box-shadow 0.2s;
-      margin-top: 10px;
-    }
-
-    button:hover {
-      background: #45a049;
-      transform: scale(1.03);
-      box-shadow: 0 6px 20px rgba(0,0,0,0.2);
-    }
-
-    .preview {
-      margin-top: 12px;
-      text-align: center;
-      opacity: 0;
-      animation: fadeIn 0.8s ease forwards;
-    }
-
-    .preview img, .preview video {
-      max-width: 100%;
-      max-height: 220px;
-      margin-top: 10px;
-      border-radius: 10px;
-      border: 1px solid #ccc;
-      transition: transform 0.3s;
-    }
-
-    .preview img:hover, .preview video:hover {
-      transform: scale(1.03);
-    }
-
-    @keyframes fadeIn {
-      to { opacity: 1; }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h2>TamerlanMotion</h2>
-    <form action="/upload" method="post" enctype="multipart/form-data">
-      <label>Фото:
-        <input type="file" name="photo" accept="image/*" required onchange="previewFile(this, 'photoPreview')">
-      </label>
-      <div class="preview" id="photoPreview"></div>
-
-      <label>Видео:
-        <input type="file" name="video" accept="video/*" required onchange="previewFile(this, 'videoPreview')">
-      </label>
-      <div class="preview" id="videoPreview"></div>
-
-      <label>.mind файл:
-        <input type="file" name="mind" accept=".mind" required>
-      </label>
-
-      <button type="submit">Загрузить</button>
-    </form>
-  </div>
-
-  <script>
-    function previewFile(input, previewId) {
-      const preview = document.getElementById(previewId);
-      preview.innerHTML = '';
-      preview.style.opacity = 0;
-
-      if (input.files && input.files[0]) {
-        const file = input.files[0];
-
-        let element;
-        if (file.type.startsWith('image/')) {
-          element = document.createElement('img');
-          element.src = URL.createObjectURL(file);
-        } else if (file.type.startsWith('video/')) {
-          element = document.createElement('video');
-          element.src = URL.createObjectURL(file);
-          element.controls = true;
-        }
-
-        if (element) {
-          preview.appendChild(element);
-          setTimeout(() => preview.style.opacity = 1, 100);
-        }
-      }
-    }
-  </script>
+  <h2>TamerlanMotion — Загрузка AR</h2>
+  <form action="/upload" method="post" enctype="multipart/form-data">
+    <label>Фото: <input type="file" name="photo" required></label>
+    <label>Видео: <input type="file" name="video" required></label>
+    <label>Mind-файл: <input type="file" name="mind" required></label>
+    <button type="submit">Загрузить</button>
+  </form>
 </body>
 </html>
